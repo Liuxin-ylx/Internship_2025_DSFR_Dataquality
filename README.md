@@ -14,4 +14,4 @@ My_project/ <br/>
 └── README.md                
 ```
 
-# Explanation of files
+# Explanation of pipeline
