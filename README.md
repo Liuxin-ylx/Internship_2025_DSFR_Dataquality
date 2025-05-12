@@ -15,16 +15,26 @@ My_project/ <br/>
 ```
 
 # Explanation of pipeline
-## Step1: Simple cleaning
+## Step1: Data cleaning
 ### SQL
-1. Multiple space --> single space
-2. Convert to upper case
-3. Delete spaces before and after
-4. Replace diacritics (accents)
+1. Convert multiple space to single space ```REGEXP_REPLACE(_, r'\\s+', ' ')```
+2. Convert to upper case ```UPPER()```
+3. Delete spaces before and after ```TRIM()```
+4. Replace diacritics (accents) ```REGEXP_REPLACE(NORMALIZE(_, NFD), r'\pM', '')```
 ### Python
-5. Unifier les noms des marques
+5. Unify the brands' names:
 
-## Step2: Simple check
+> To begin with, we remove all non-alphanumeric characters from brand names to normalize similar variants (e.g., "L'OREAL", "L OREAL" → "LOREAL").  
+>
+> Next, we group the original brand names based on their normalized form and count the frequency of each original name within each group.  
+>
+> We then select the most frequent original name in each group as the standardized brand name and store this mapping in a dictionary.
+> 
+> As a result, all variants like "L'OREAL" and "L OREAL" will be unified under the most common form depending on the frequency.  
+
+
+
+## Step2: Data check
 ### SQL
 1. Check duplicates across the entire line
 2. Check duplicates based on primary key
