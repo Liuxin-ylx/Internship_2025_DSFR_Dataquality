@@ -15,14 +15,17 @@ My_project/ <br/>
 ```
 
 # Explanation of pipeline
-## Step1: Simple cleaning: (sql)
+## Step1: Simple cleaning
+### SQL
 1. Multiple space --> single space
 2. Convert to upper case
 3. Delete spaces before and after
-[Nouveau] 4. Replace diacritics (accents)
-Step1.1: Unifier les noms des marques (Python)
+4. Replace diacritics (accents)
+### Python
+5. Unifier les noms des marques
 
 ## Step2: Simple check
+### SQL
 1. Check duplicates across the entire line
 2. Check duplicates based on primary key
 3. [Option] Check barcode length
