@@ -16,13 +16,14 @@ My_project/ <br/>
 
 # Explanation of pipeline
 ## Step1: Data cleaning
-### SQL
+### 1.1 Format-level Cleaning
 1. Convert multiple space to single space ```REGEXP_REPLACE(_, r'\\s+', ' ')```
 2. Convert to upper case ```UPPER()```
 3. Delete spaces before and after ```TRIM()```
 4. Replace diacritics (accents) ```REGEXP_REPLACE(NORMALIZE(_, NFD), r'\pM', '')```
-### Python
-5. Unify the brands' names:
+### 1.2 Semantic-level Cleaning
+5. Handle missing values (convert variants like "N/A", "null", "" to NULL)
+6. Unify the brands' names:
 
 > To begin with, we remove all non-alphanumeric characters from brand names to normalize similar variants (e.g., "L'OREAL", "L OREAL" → "LOREAL").  
 >
@@ -34,8 +35,7 @@ My_project/ <br/>
 
 
 
-## Step2: Data check
-### SQL
+## Step2: Data validaton
 1. Check duplicates across the entire line
 2. Check duplicates based on primary key
 3. [Option] Check barcode length
