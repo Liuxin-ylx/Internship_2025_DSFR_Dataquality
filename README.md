@@ -5,13 +5,15 @@ My_project/ <br/>
 ├── main.py <br/>                 
 ├── config/                  # Configuration, parameters
 │   └── __init__.py       
-│   └── configuration.py       
+│   └── configuration.py
+│   └── table.py       
 ├── modules/                 # Functions
 │   ├── __init__.py         
 │   ├── generateQuery.py        
-│   ├── ...                  
+│   ├── standarize.py
+│   ├── generateDictionary.py             
 ├── data/                    # Data（.csv/.json）
-└── README.md                
+└── README.md                    
 ```
 
 # Explanation of pipeline
