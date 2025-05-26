@@ -40,5 +40,5 @@ My_project/ <br/>
 ## Step2: Data validaton
 1. Check duplicates across the entire line
 2. Check duplicates based on primary key
-3. [Option] Check barcode length
-4. [Option] Check consistency of barcode with hierarchy
+3. Check barcode length
+4. [Option] Check date
