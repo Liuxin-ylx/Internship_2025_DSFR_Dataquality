@@ -13,11 +13,11 @@ def standarize_by_frequence(df:pd.DataFrame, cols: list) -> pd.DataFrame:
     """
     def normalize(brand):
         """
-        Normalize the brand name by removing spaces and converting to uppercase.
+        Normalize the brand name by removing non-alphanumeric characters.
         """
         if pd.isnull(brand):
             return None
-        return re.sub(r'[A-Z0-9]', '',brand)
+        return re.sub(r'[^A-Z0-9]', '',brand)
     
     def mapping(col:str):
         df["__normalized"] = df[col].apply(normalize)
@@ -31,13 +31,11 @@ def standarize_by_frequence(df:pd.DataFrame, cols: list) -> pd.DataFrame:
         )
 
         df[col] = df["__normalized"].map(most_frequent)
-        print(pd.Series(most_frequent).value_counts())
-        # pd.DataFrame.from_dict(most_frequent, orient="index", columns=['standardized'])
 
 
     for col in cols:
         mapping(col)
     df = df.drop(columns=["__normalized"])
-
+    
     return df
 
