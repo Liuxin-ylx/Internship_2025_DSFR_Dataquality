@@ -9,5 +9,6 @@ class DatasetConfig:
     clean_table: str = "LIUXIN_crf_product_reference_cleaned"
     excluded_table: str = "LIUXIN_crf_product_reference_excluded"
 
+    dataset_type: str = "supermarket" # or "cinema"
     key_cle: str = "country_id, barcode"
     main_barcode: str = "barcode"

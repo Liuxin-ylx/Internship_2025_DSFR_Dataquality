@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 #Author: Liuxin YANG
-#Date: 2025-05-13
+#Date: 2025-05-31
 
 from google.cloud import bigquery
 from config.configuration import DatasetConfig
-from config.table import obtain_table_name
+from config.obtainInfo import (
+    obtain_table_name,
+    load_check_rules
+)
 import pandas as pd 
+import importlib
 from typing import Tuple
 
 def generate_clean_clause(schema, prefix: str = None) -> str:
@@ -39,7 +43,6 @@ def generate_clean_clause(schema, prefix: str = None) -> str:
             clean_clause.append(f"{field_ref} AS {field.name}")
     return ",\n    ".join(clean_clause)
 
-
 def generate_clean_query(cfg:DatasetConfig, client:bigquery.Client, tableType:str) -> str:
     """
     Apply the cleaning clause to the table of the specified type (tableType).
@@ -57,6 +60,59 @@ def generate_clean_query(cfg:DatasetConfig, client:bigquery.Client, tableType:st
     """
     return clean_query
 
+def duplicate_rows_query(cfg:DatasetConfig, from_table, all_columns_clause:str) -> str:
+    """
+    Generate a query to find duplicate rows in the clean table.
+    """
+    # 1. Duplicate rows
+    rule_row = f"""
+    SELECT 'all_line_duplicate' AS reason, *
+    FROM `{from_table}`
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY {all_columns_clause}) > 1
+    """
+    
+    return rule_row
+
+def duplicate_keys_query(cfg:DatasetConfig, from_table:str) -> str:
+    # 2. Duplicate keys
+    rule_key = f"""
+    SELECT 'primary_key_duplicate' AS reason, *
+    FROM `{from_table}`
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY {cfg.key_cle}) > 1
+    """
+
+    return rule_key
+
+def barcode_length_query(cfg:DatasetConfig, from_table:str) -> str:
+    # 3. Invalid barcode length
+    rule_barcode = f"""
+    SELECT 'wrong_barcode_length' AS reason, *
+    FROM `{from_table}`
+    WHERE LENGTH({cfg.main_barcode}) NOT IN (7, 8, 10, 13)
+    """
+
+    return rule_barcode
+
+def date_format_query(cfg:DatasetConfig,from_table:str, schema:list) -> str:
+
+    for field in schema:
+        if field.field_type == "DATE":
+            date_ref = f"{field.name}" 
+            break
+    else:
+        raise ValueError("No DATE field found in the schema.")
+
+        # 4. Invalid date format
+    rule_date = f"""
+    SELECT 'wrong_date' AS reason, *
+    FROM `{from_table}`
+    WHERE EXTRACT(YEAR FROM {date_ref}) < 1900 OR
+          EXTRACT(YEAR FROM {date_ref}) > 2100 OR
+          {date_ref} IS NULL
+    """
+
+    return rule_date
+
 
 def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> Tuple[str,str]:
     """
@@ -70,47 +126,37 @@ def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> T
     columns = [field.name for field in schema]
     all_columns_clause = ", ".join(columns)   
 
-    for field in schema:
-        if field.field_type == "DATE":
-            date_ref = f"{field.name}" 
-
-
     clean_table = f"{cfg.project}.{cfg.dataset}.{cfg.clean_table}"
     excluded_table = f"{cfg.project}.{cfg.dataset}.{cfg.excluded_table}"
-
-    # 1. Duplicate rows
-    rule_row = f"""
-    SELECT TRUE AS all_line_duplicate, FALSE AS primary_key_duplicate, FALSE AS wrong_barcode_length, FALSE AS wrong_date, *, 
-    FROM `{clean_table}`
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY {all_columns_clause}) > 1
-    """
-
-    # 2. Duplicate keys
-    rule_key = f"""
-    SELECT FALSE AS all_line_duplicate, TRUE AS primary_key_duplicate, FALSE AS wrong_barcode_length, FALSE AS wrong_date, *,
-    FROM `{clean_table}`
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY {cfg.key_cle}) > 1
-    """
-    
-    # 3. Invalid barcode length
-    rule_barcode = f"""
-    SELECT FALSE AS all_line_duplicate, FALSE AS primary_key_duplicate, TRUE AS wrong_barcode_length, FALSE AS wrong_date, *,
-    FROM `{clean_table}`
-    WHERE LENGTH({cfg.main_barcode}) NOT IN (7, 8, 10, 13)
-    """
-
-    # 4. Invalid date format
-    rule_date = f"""
-    SELECT FALSE AS all_line_duplicate, FALSE AS primary_key_duplicate, FALSE AS wrong_barcode_length, TRUE AS wrong_date, *,
-    FROM `{clean_table}`
-    WHERE EXTRACT(YEAR FROM {date_ref}) < 1900 OR
-          EXTRACT(YEAR FROM {date_ref}) > 2100 OR
-          {date_ref} IS NULL
-    """
     
     # Combine all rules into a single query
-    all_rules = [rule_row, rule_key, rule_barcode, rule_date]
-    union_query = " UNION ALL ".join(all_rules)
+    rule_queries = []
+    active_rules = load_check_rules(cfg.dataset_type)
+    if "duplicate_row" in active_rules:
+        rule_queries.append(duplicate_rows_query(cfg, clean_table, all_columns_clause))
+    if "duplicate_key" in active_rules:
+        rule_queries.append(duplicate_keys_query(cfg, clean_table))
+    if "barcode_length" in active_rules:
+        rule_queries.append(barcode_length_query(cfg, clean_table))
+    if "date_format" in active_rules:
+        date_q = date_format_query(cfg, clean_table, schema)
+        if date_q:
+            rule_queries.append(date_q)
+
+    union_query = " UNION ALL ".join(rule_queries)
+    exclude_query = f"""
+        WITH check_errors AS (
+            {union_query}
+        ),
+        grouped AS (
+            SELECT
+                ARRAY_AGG(DISTINCT reason) AS reasons,
+                {all_columns_clause}
+            FROM check_errors
+            GROUP BY {all_columns_clause}
+        )
+        SELECT * FROM grouped
+    """
 
     filter_query = f"""
     SELECT * FROM `{clean_table}` 
@@ -118,7 +164,7 @@ def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> T
     SELECT {all_columns_clause} FROM `{excluded_table}`
     """
 
-    return union_query,filter_query
+    return exclude_query,filter_query
 
 
 def do_query_job(cfg:DatasetConfig,client:bigquery.Client, tableType:str, query:str) -> None:
