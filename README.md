@@ -1,19 +1,34 @@
 # Architecture of the projects
 
 ```
-My_project/ <br/>
-├── main.py <br/>                 
-├── config/                  # Configuration, parameters
-│   └── __init__.py       
-│   └── configuration.py
-│   └── table.py       
-├── modules/                 # Functions
-│   ├── __init__.py         
-│   ├── generateQuery.py        
-│   ├── standarize.py
-│   ├── generateDictionary.py             
-├── data/                    # Data（.csv/.json）
-└── README.md                    
+.
+|--- correction
+|---  |   correction_dict.py
+|---  |   __init__.py
+|--- config
+|---  |   configuration.py
+|---  |   check_rules.yaml
+|---  |   obtainInfo.py
+|---  |   __init__.py
+|---  |   __pycache__
+|---  |   |   configuration.cpython-312.pyc
+|---  |   |   __init__.cpython-312.pyc
+|--- README.md
+|--- main.py
+|--- modules
+|---  |   standarize.py
+|---  |   generateEmbedding.py
+|---  |   generateDictionary.py
+|---  |   __init__.py
+|---  |   __pycache__
+|---  |   |   generateEmbedding.cpython-310.pyc
+|---  |   |   nlp.cpython-310.pyc
+|---  |   |   __init__.cpython-310.pyc
+|---  |   nlp.py
+|---  |   generateQuery.py
+|--- data
+|---  |   french_dictionary.txt
+|---  |   dataset.csv               
 ```
 
 # Explanation of pipeline
