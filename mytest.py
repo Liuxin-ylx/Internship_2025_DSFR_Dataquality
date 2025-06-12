@@ -1,5 +1,5 @@
+import pickle
 import pandas as pd
-import torch
 from torch.utils.data import DataLoader
 
 from modules.generateEmbedding import generate_embedding
@@ -9,27 +9,16 @@ from modules.model import (
     inference_model,
     decode_predictions
 )
-
+from config.configuration import ModelConfig
 def run(
+        cfg: ModelConfig,
         train_df: pd.DataFrame,
         test_df: pd.DataFrame,
-        model_path="../sentence-transformers",
-        mode:str = 'train',
-        batch_size:int = 2,
-        epochs:int = 5,
-        hidden_dim:int = 128):
+        mode: str = 'train',
+        load_from_checkpoint: bool = True,
+        model_save_name = "final_model.pt",
+        model_read_path = "checkpoints/final_model.pt"):
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    label_cols=[
-                "hierarchy_level1_desc",
-                "global_hierarchy_level2_desc",
-                "global_hierarchy_level3_desc",
-                "global_hierarchy_level4_desc",
-                "global_hierarchy_level5_desc",
-                "global_hierarchy_level6_desc"
-            ]
-    
-
     # 1.Check dataset
     if train_df is None and test_df is None:
         raise ValueError("Both train_df and test_df cannot be None. Please provide at least one DataFrame.")
@@ -39,7 +28,6 @@ def run(
         test_df = train_df
 
     # 2.Load dataset and generate embeddings
-    # df = pd.read_csv("data/dataset.csv")
     train_df['split'] = 'train'
     test_df['split'] = 'test'
     df = pd.concat([train_df, test_df], ignore_index=True)
@@ -47,13 +35,12 @@ def run(
         
     X_all, y_all, label_map, reverse_label_map = generate_embedding(
         df=df,
-        model_path = model_path,
+        model_path = cfg.embedding_path,
         text_cols = "description",
-        value_cols = None,
-        category_cols =["color_desc", "size_desc"],
-        label_cols = label_cols
+        value_cols = cfg.value_cols,
+        category_cols = cfg.category_cols,
+        label_cols = cfg.label_cols
     )
-    import pickle
     with open('checkpoints/label_map.pkl', 'wb') as f:
         pickle.dump((label_map, reverse_label_map), f)
 
@@ -64,44 +51,43 @@ def run(
     test_df = df[~split_mask].copy()    
 
     # dataLoader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    n_classes_per_level = [len(df[col].unique()) for col in label_cols]
+    n_classes_per_level = [len(df[col].unique()) for col in cfg.label_cols]
     if mode == 'train':
         print("Training mode: Training the model...")
         train_dataset = NLPDataset(X_train, y_train, return_labels=True)
         model = NLPHierarchyClassifier(
             input_dim = X_train.shape[1],
-            hidden_dim = hidden_dim,
+            hidden_dim = cfg.hidden_dim,
             n_classes_per_level = n_classes_per_level,
-        ).to(device)
+        ).to(cfg.device)
 
         # Train the model
         trained_model = train_model(
-            save_path="checkpoints/",
-            dataset=train_dataset,
-            model=model,
-            batch_size=batch_size,
-            epochs=epochs,
-            device=device
+            cfg = cfg,
+            dataset = train_dataset,
+            model = model,
+            model_save_name = model_save_name,
+            load_from_checkpoint = load_from_checkpoint,
+            model_read_path = model_read_path
         )
     # Inference
     elif mode == 'inference':
         print("Inference mode: Loading the model for inference...")
-        import pickle
         with open('checkpoints/label_map.pkl', 'rb') as f:
             label_map, reverse_label_map = pickle.load(f)
 
         test_dataset = NLPDataset(X_test, y_test, return_labels=False)
+
         pred_labels = inference_model(
-            model_class = NLPHierarchyClassifier,
-            model_path = "checkpoints/final_model.pt",
+            cfg = cfg,
+            dataset = test_dataset,
             input_dim = X_test.shape[1],
             n_classes_per_level = n_classes_per_level,
-            dataset = test_dataset,
-            batch_size = 2
+            model_read_path = model_read_path
         )
 
         # Print the predicted labels
-        decoded_df = decode_predictions(pred_labels, reverse_label_map, label_cols, test_df)
+        decoded_df = decode_predictions(pred_labels, reverse_label_map, cfg.label_cols, test_df)
         pd.set_option('display.max_columns', None)
         preds = decoded_df[decoded_df.columns[-6:]]
         preds.to_csv("data/decoded_predictions_v2.csv", index=True)
@@ -110,12 +96,13 @@ def run(
         raise ValueError("Invalid mode. Choose 'train' or 'inference'.")
 
 
-
+cfg = ModelConfig()
 result = run(
+    cfg,
     train_df=pd.read_csv("data/dataset - train.csv"),
     test_df=pd.read_csv("data/dataset - test.csv"),
     mode='inference',
-    batch_size=2,
-    epochs=100,
-    hidden_dim=128
+    load_from_checkpoint=True,
+    model_save_name = "model_latest2.pt",
+    model_read_path = "checkpoints/model_latest2.pt"
 )

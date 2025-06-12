@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import torch
 
 @dataclass
 class DatasetConfig:
@@ -11,3 +12,30 @@ class DatasetConfig:
 
     key_cle: str = "country_id, barcode"
     main_barcode: str = "barcode"
+
+
+@dataclass
+class ModelConfig:
+    embedding_path: str = "../sentence-transformers"
+    model_save_path: str = "checkpoints/"
+    
+    batch_size: int = 2
+    epochs: int = 50
+    hidden_dim: int = 128
+
+    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    value_cols = None
+    category_cols: list = field(default_factory=lambda:[
+        "color_desc", 
+        "size_desc"
+    ])
+    label_cols: list = field(default_factory=lambda: [
+        "hierarchy_level1_desc",
+        "global_hierarchy_level2_desc",
+        "global_hierarchy_level3_desc",
+        "global_hierarchy_level4_desc",
+        "global_hierarchy_level5_desc",
+        "global_hierarchy_level6_desc"
+    ])
+    

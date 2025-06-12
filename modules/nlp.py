@@ -18,19 +18,15 @@ class NLPDataset(Dataset):
     def __getitem__(self, idx):
         if self.return_labels:
             return self.X[idx],self.y[idx]
-            #return torch.tensor(
-            #    self.X[idx], dtype=torch.float32), torch.tensor(self.y[idx], dtype=torch.long
-            #)
+            
         else:
             return self.X[idx]
-            #return torch.tensor(
-            #    self.X[idx], dtype=torch.float32  
-            #)
+            
 
 class NLPHierarchyClassifier(nn.Module):
     def __init__(
             self, 
-            input_dim, 
+            input_dim,
             hidden_dim,
             n_classes_per_level
     ):

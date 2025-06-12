@@ -6,30 +6,34 @@ import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
-from typing import Type
 from torch.utils.data import Dataset, DataLoader
+from config.configuration import ModelConfig
+from modules.nlp import NLPHierarchyClassifier
 
 def train_model(
-        save_path: str,
+        cfg: ModelConfig,
         dataset: Dataset, 
         model: nn.Module,
-        batch_size: int = 2,
-        epochs: int = 5,
-        device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_save_name: str,
+        load_from_checkpoint: bool = False,
+        model_read_path: str = None,
     ) -> nn.Module:
 
-    dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    if load_from_checkpoint:
+        model.load_state_dict(torch.load(model_read_path))
+    model = model.to(cfg.device)
+
+    dataLoader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True)
     loss_fn = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    model = model.to(device)
+    
 
-
-    for epoch in range(epochs):
+    for epoch in range(cfg.epochs):
         model.train()
         total_loss = 0.0
         for xb,yb in dataLoader:
-            xb = xb.to(device)
-            yb = yb.to(device)
+            xb = xb.to(cfg.device)
+            yb = yb.to(cfg.device)
 
             preds = model(xb)
             loss = sum([loss_fn(preds[i], yb[:, i]) for i in range(6)])
@@ -40,36 +44,35 @@ def train_model(
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch + 1}/{epochs}, Loss: {total_loss:.4f}")
-        torch.save(model.state_dict(), os.path.join(save_path, f"model_epoch{epoch+1}.pt"))
+        print(f"Epoch {epoch + 1}/{cfg.epochs}, Loss: {total_loss:.4f}")
+        # torch.save(model.state_dict(), os.path.join(save_path, f"model_epoch{epoch+1}.pt"))
 
-    torch.save(model.state_dict(), os.path.join(save_path, "final_model.pt"))
+    torch.save(model.state_dict(), os.path.join(cfg.model_save_path, model_save_name))
     return model
 
 def inference_model(
-        model_class: Type[nn.Module],
-        model_path: str,
+        cfg: ModelConfig,
         dataset: Dataset,
         input_dim: int,
-        batch_size: int,
-        n_classes_per_level: list[int],
-        device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+        n_classes_per_level: list,
+        model_read_path: str,
     ) -> np.ndarray:
     
-    model = model_class(
+    model = NLPHierarchyClassifier(
         input_dim=input_dim,
-        hidden_dim=128,  # Assuming a fixed hidden dimension
+        hidden_dim=cfg.hidden_dim,
         n_classes_per_level=n_classes_per_level
     )
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model = model.to(device)
+
+    model.load_state_dict(torch.load(model_read_path, map_location=cfg.device))
+    model = model.to(cfg.device)
     model.eval()
 
-    dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    dataLoader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False)
     predictions = []
     with torch.no_grad():
         for xb in dataLoader:
-            xb = xb.to(device)
+            xb = xb.to(cfg.device)
             preds = model(xb)
             batch_preds = [torch.argmax(pred, dim=1).cpu().numpy() for pred in preds]
             batch_preds = np.stack(batch_preds, axis=1)  # Shape: (batch_size, 6)
