@@ -20,7 +20,7 @@ class ModelConfig:
     model_save_path: str = "checkpoints/"
     
     batch_size: int = 2
-    epochs: int = 50
+    epochs: int = 100
     hidden_dim: int = 128
 
     device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,7 +30,7 @@ class ModelConfig:
         "color_desc", 
         "size_desc"
     ])
-    label_cols: list = field(default_factory=lambda: [
+    hierarchy_cols: list = field(default_factory=lambda: [
         "hierarchy_level1_desc",
         "global_hierarchy_level2_desc",
         "global_hierarchy_level3_desc",
@@ -38,4 +38,14 @@ class ModelConfig:
         "global_hierarchy_level5_desc",
         "global_hierarchy_level6_desc"
     ])
-    
+    correct_hierarchy_cols: list = field(default_factory=lambda: [
+        "correct_hierarchy_level1_desc",
+        "correct_global_hierarchy_level2_desc",
+        "correct_global_hierarchy_level3_desc",
+        "correct_global_hierarchy_level4_desc",
+        "correct_global_hierarchy_level5_desc",
+        "correct_global_hierarchy_level6_desc"
+    ])
+    label_cols: list = field(default_factory=lambda: [
+        "is_error"
+    ])

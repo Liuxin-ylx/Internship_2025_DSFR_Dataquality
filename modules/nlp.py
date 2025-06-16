@@ -7,9 +7,11 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 
 class NLPDataset(Dataset):
-    def __init__(self, X, y, return_labels=True):
+    def __init__(self, X, y, ylabels, label, return_labels=True):
         self.X = X if isinstance(X, torch.Tensor) else torch.tensor(X, dtype=torch.float32)
         self.y = y if isinstance(y, torch.Tensor) else torch.tensor(y, dtype=torch.long)
+        self.ylabels = ylabels if isinstance(ylabels, torch.Tensor) else torch.tensor(ylabels, dtype=torch.long)
+        self.label = label if isinstance(label, torch.Tensor) else torch.tensor(label, dtype=torch.bool)
         self.return_labels = return_labels
 
     def __len__(self):
@@ -17,10 +19,10 @@ class NLPDataset(Dataset):
     
     def __getitem__(self, idx):
         if self.return_labels:
-            return self.X[idx],self.y[idx]
+            return self.X[idx],self.y[idx],self.ylabels[idx], self.label[idx]
             
         else:
-            return self.X[idx]
+            return self.X[idx],self.y[idx]
             
 
 class NLPHierarchyClassifier(nn.Module):
