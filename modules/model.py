@@ -43,6 +43,8 @@ def train_model(
             
             level_loss = 0.0
             
+            
+
             for i in range(len(preds)-1):
                 if (~is_error).any():
                     level_loss += loss_fn(preds[i][~is_error], yb[:,i][~is_error])

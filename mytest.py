@@ -110,9 +110,9 @@ cfg = ModelConfig()
 result = run(
     cfg,
     train_df=pd.read_csv("data/dataset - train.csv"),
-    test_df=pd.read_csv("data/dataset - train.csv"),
+    test_df=pd.read_csv("data/dataset - test.csv"),
     mode='inference',
     load_from_checkpoint=False,
-    model_save_name = "model_latest_mask_0616.pt",
-    model_read_path = "checkpoints/model_latest_mask_0616.pt"
+    model_save_name = "model_latest_mask_0617_sanshierarchy.pt",
+    model_read_path = "checkpoints/model_latest_mask_0617_sanshierarchy.pt"
 )

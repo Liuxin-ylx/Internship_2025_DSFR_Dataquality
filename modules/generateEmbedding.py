@@ -42,11 +42,6 @@ def generate_embedding(cfg: ModelConfig, df: pd.DataFrame, model_path, text_cols
     else:
         category_onehot = np.array([])
 
-    feature_parts = []
-    for part in [desc_embeddings, value_scaled, category_onehot]:
-        if isinstance(part, (np.ndarray, torch.Tensor)) and part.size > 0:
-            feature_parts.append(part)
-    X = np.hstack(feature_parts)
 
     label_map = {}
     reverse_label_map = {}
@@ -86,5 +81,11 @@ def generate_embedding(cfg: ModelConfig, df: pd.DataFrame, model_path, text_cols
         label = df[cfg.label_cols].astype(bool).values
     else:
         label = None
+
+    feature_parts = []
+    for part in [desc_embeddings, value_scaled, category_onehot, y]:
+        if isinstance(part, (np.ndarray, torch.Tensor)) and part.size > 0:
+            feature_parts.append(part)
+    X = np.hstack(feature_parts)
 
     return X, y, ylabels, label, label_map, reverse_label_map
