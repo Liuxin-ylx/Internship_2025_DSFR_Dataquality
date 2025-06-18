@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 #Author: Liuxin YANG
-#Date: 2025-05-13
+#Date: 2025-06-02
 
 from google.cloud import bigquery
 from config.configuration import DatasetConfig
-from config.table import obtain_dataframe
+from config.obtainInfo import obtain_dataframe
 from modules.standarize import standarize_by_frequence
 from modules.generateQuery import (
     generate_clean_query,
@@ -38,7 +38,7 @@ class DataCleaningPipeline:
         print("Step 2: Data validation...")
         exclude_query,final_query = generate_check_exclude_query(self.cfg, self.client)
         do_query_job(self.cfg, self.client, "excluded", exclude_query)
-        do_query_job(self.cfg, self.client, "clean", final_query)
+        #do_query_job(self.cfg, self.client, "clean", final_query)
 
         print("Pipeline finished.")
 

@@ -26,3 +26,17 @@ def obtain_dataframe(cfg:DatasetConfig,client:bigquery.Client, tableType: str) -
                         """).to_dataframe()
     
     return data
+
+def load_check_rules(dataset_type: str, yaml_path: str = "config/check_rules.yaml") -> list:
+    """
+    Load check rules from a YAML file based on the dataset type.
+    
+    Args:
+        dataset_type (str): The type of dataset (e.g., 'raw', 'clean').
+        yaml_path (str): Path to the YAML file containing check rules.
+        
+    """
+    import yaml
+    with open(yaml_path, 'r') as file:
+        rules = yaml.safe_load(file)
+    return rules.get(dataset_type, {}).get("rules", [])
