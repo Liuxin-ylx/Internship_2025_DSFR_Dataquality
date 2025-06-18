@@ -4,9 +4,7 @@
 
 import re
 import pandas as pd
-from google.cloud import bigquery
 from correction.correction_dict import correction_dict_es_cinema
-from config.configuration import DatasetConfig
 
 
 def standarize_by_frequence(df:pd.DataFrame, cols: list) -> pd.DataFrame:
