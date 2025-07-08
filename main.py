@@ -35,8 +35,8 @@ class DataCleaningPipeline:
 
         print("""
             Running Semantic-level Cleaning...
-            
-            --------> Standarize column values...""")
+            --------> Handle missing brand names...
+            --------> Unify brand names...""")
         clean_data = obtain_dataframe(self.cfg, self.client, "clean")
         target_cols = [field.name for field in self.schema if "brand" in field.name.lower() or "supplier" in field.name.lower()]
         clean_data = standarize_by_frequence(clean_data,target_cols)
