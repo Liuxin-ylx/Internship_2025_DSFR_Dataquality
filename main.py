@@ -22,14 +22,21 @@ class DataCleaningPipeline:
         self.schema = self.client.get_table(f"{self.cfg.project}.{self.cfg.dataset}.{self.cfg.raw_table}").schema
 
     def run(self):
-        print("Step 1: Data Cleaning...")
-        print("Step 1.1: Running Format-level Cleaning...")
+        print("""
+            Step 1: Data Cleaning...
+            Running Format-level Cleaning...
+                1. Normalise whitespace
+                2. Convert to upper case
+                3. Delete spaces before and after
+                4. Remove diacritics (accents)
+                5. Handling missing values...\n""")
         clean_query = generate_clean_query(self.cfg, self.client, "raw")
         do_query_job(self.cfg, self.client, "clean", clean_query)
 
-        print("Step 1.2: Running Semantic-level Cleaning...")
-        print("--------> Handling missing values...")
-        print("--------> Standarize column values...")
+        print("""
+            Running Semantic-level Cleaning...
+            
+            --------> Standarize column values...""")
         clean_data = obtain_dataframe(self.cfg, self.client, "clean")
         target_cols = [field.name for field in self.schema if "brand" in field.name.lower() or "supplier" in field.name.lower()]
         clean_data = standarize_by_frequence(clean_data,target_cols)

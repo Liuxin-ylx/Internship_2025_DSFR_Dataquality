@@ -8,8 +8,7 @@ from config.obtainInfo import (
     obtain_table_name,
     load_check_rules
 )
-import pandas as pd 
-import importlib
+import pandas as pd
 from typing import Tuple
 
 def generate_clean_clause(schema, prefix: str = None) -> str:
@@ -102,13 +101,13 @@ def date_format_query(cfg:DatasetConfig,from_table:str, schema:list) -> str:
     else:
         raise ValueError("No DATE field found in the schema.")
 
-        # 4. Invalid date format
+    # 4. Invalid date format
     rule_date = f"""
     SELECT 'wrong_date' AS reason, *
     FROM `{from_table}`
-    WHERE EXTRACT(YEAR FROM {date_ref}) < 1900 OR
-          EXTRACT(YEAR FROM {date_ref}) > 2100 OR
-          {date_ref} IS NULL
+    WHERE EXTRACT(YEAR FROM {date_ref}) NOT BETWEEN 1963 AND 2100
+    AND EXTRACT(YEAR FROM {date_ref}) <> 9999
+    AND {date_ref} IS NOT NULL
     """
 
     return rule_date

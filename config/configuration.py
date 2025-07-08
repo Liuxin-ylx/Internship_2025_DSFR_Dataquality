@@ -6,9 +6,9 @@ class DatasetConfig:
     project: str = "lranalytics-eu-660531"
     dataset: str = "crf_liveramp_data_science_work"
     
-    raw_table: str = "LIUXIN_crf_product_reference"
-    clean_table: str = "LIUXIN_crf_product_reference_cleaned"
-    excluded_table: str = "LIUXIN_crf_product_reference_excluded"
+    raw_table: str = "LIUXIN_crf_product_join_0630"
+    clean_table: str = "LIUXIN_crf_product_join_cleaned_0630"
+    excluded_table: str = "LIUXIN_crf_product_join_excluded_0630"
 
     dataset_type: str = "supermarket" # or "cinema"
     key_cle: str = "country_id, barcode"

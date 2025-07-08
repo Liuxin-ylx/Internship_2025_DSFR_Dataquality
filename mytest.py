@@ -94,7 +94,12 @@ def run(
         decoded_df = decode_predictions(pred_labels, reverse_label_map, cfg.hierarchy_cols+cfg.label_cols, test_df)
         # print only the rows that the machine thinks are wrong
         pd.set_option('display.max_columns', None)
+        
         print("Mauvais exemples:")
+        mauvais_ex = decoded_df[decoded_df['is_error'] == 1]
+        print(mauvais_ex[cfg.hierarchy_cols + cfg.label_cols])
+
+        print("Mauvais exemples prédits:")
         suspect_lines = decoded_df[decoded_df['pred_is_error'] == 1]
         preds = suspect_lines[decoded_df.columns[-len(cfg.hierarchy_cols)-1:]]
         original = suspect_lines[cfg.hierarchy_cols + cfg.label_cols]
@@ -113,6 +118,6 @@ result = run(
     test_df=pd.read_csv("data/dataset - test.csv"),
     mode='inference',
     load_from_checkpoint=False,
-    model_save_name = "model_latest_mask_0617_sanshierarchy.pt",
-    model_read_path = "checkpoints/model_latest_mask_0617_sanshierarchy.pt"
+    model_save_name = "model_latest_mask_0617_avechierarchy.pt",
+    model_read_path = "checkpoints/model_latest_mask_0617_avechierarchy.pt"
 )
