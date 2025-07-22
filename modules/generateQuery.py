@@ -59,7 +59,7 @@ def generate_clean_query(cfg:DatasetConfig, client:bigquery.Client, tableType:st
     """
     return clean_query
 
-def duplicate_rows_query(cfg:DatasetConfig, from_table, all_columns_clause:str) -> str:
+def duplicate_rows_query(from_table, all_columns_clause:str) -> str:
     """
     Generate a query to find duplicate rows in the clean table.
     """
@@ -92,7 +92,7 @@ def barcode_length_query(cfg:DatasetConfig, from_table:str) -> str:
 
     return rule_barcode
 
-def date_format_query(cfg:DatasetConfig,from_table:str, schema:list) -> str:
+def date_format_query(from_table:str, schema:list) -> str:
 
     for field in schema:
         if field.field_type == "DATE":
@@ -132,13 +132,13 @@ def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> T
     rule_queries = []
     active_rules = load_check_rules(cfg.dataset_type)
     if "duplicate_row" in active_rules:
-        rule_queries.append(duplicate_rows_query(cfg, clean_table, all_columns_clause))
+        rule_queries.append(duplicate_rows_query(clean_table, all_columns_clause))
     if "duplicate_key" in active_rules:
         rule_queries.append(duplicate_keys_query(cfg, clean_table))
     if "barcode_length" in active_rules:
         rule_queries.append(barcode_length_query(cfg, clean_table))
     if "date_format" in active_rules:
-        date_q = date_format_query(cfg, clean_table, schema)
+        date_q = date_format_query(clean_table, schema)
         if date_q:
             rule_queries.append(date_q)
 

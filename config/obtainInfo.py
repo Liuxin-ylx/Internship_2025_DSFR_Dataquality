@@ -2,9 +2,11 @@
 #Author: Liuxin YANG
 #Date: 2025-05-13
 
+import time
+import pandas as pd
 from config.configuration import DatasetConfig
 from google.cloud import bigquery
-import pandas as pd
+
 
 def obtain_table_name(cfg:DatasetConfig, tableType: str) -> str:
     
@@ -18,11 +20,10 @@ def obtain_table_name(cfg:DatasetConfig, tableType: str) -> str:
         raise ValueError("Invalid table type. Choose from 'raw', 'clean', or 'excluded'.")
     return table
 
-def obtain_dataframe(cfg:DatasetConfig,client:bigquery.Client, tableType: str) -> pd.DataFrame:
+def obtain_dataframe(cfg:DatasetConfig,client:bigquery.Client, tableName: str) -> pd.DataFrame:
 
-    table = obtain_table_name(cfg, tableType)
     data = client.query(f"""
-                        SELECT * FROM `{cfg.project}.{cfg.dataset}.{table}`
+                        SELECT * FROM `{cfg.project}.{cfg.dataset}.{tableName}`
                         """).to_dataframe()
     
     return data
@@ -40,3 +41,15 @@ def load_check_rules(dataset_type: str, yaml_path: str = "config/check_rules.yam
     with open(yaml_path, 'r') as file:
         rules = yaml.safe_load(file)
     return rules.get(dataset_type, {}).get("rules", [])
+
+
+def time_it(func_name):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            end = time.time()
+            print(f"{func_name} completed in {end - start:.2f} seconds.")
+            return result
+        return wrapper
+    return decorator
