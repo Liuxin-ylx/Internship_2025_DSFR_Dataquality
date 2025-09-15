@@ -7,9 +7,10 @@ import pandas as pd
 import textwrap
 from google.cloud import bigquery
 from config.configuration import DatasetConfig
-from config.obtainInfo import (
+from config.utils import (
     obtain_dataframe,
-    time_it
+    do_query_job,
+    do_data2table_job
 )
 from modules.correctBrand import (
     handle_missing_brand,
@@ -20,8 +21,8 @@ from modules.correctBrand import (
 from modules.generateQuery import (
     generate_clean_query,
     generate_check_exclude_query,
-    do_query_job,
-    do_data2table_job
+    generate_warning_hierarchy
+
 )
 
 
@@ -47,7 +48,7 @@ class DataCleaningPipeline:
         
         start = time.time()
         clean_query = generate_clean_query(self.cfg, self.client, "raw")
-        do_query_job(self.cfg, self.client, "clean", clean_query)
+        do_query_job(self.cfg, self.client, "clean", None, clean_query)
         end = time.time()
         print(f"--> Format-level cleaning finished in {end - start:.2f} seconds.")
 
@@ -68,20 +69,17 @@ class DataCleaningPipeline:
         open_ean_beauty = obtain_dataframe(self.cfg, self.client, "OpenEAN_Beauty")
         open_ean_products = obtain_dataframe(self.cfg, self.client, "OpenEAN_Products")
         open_ean_data = pd.concat([open_ean_food, open_ean_petfood, open_ean_beauty, open_ean_products], ignore_index=True)
-        
-
-        handle_missing_brand_timed = time_it("Handle missing brands")(handle_missing_brand)
-        complete_brand_timed = time_it("Complete brands")(complete_brand)
-        unify_brand_timed = time_it("Unify brands")(unify_brand)
+    
     
         clean_data = (
             obtain_dataframe(self.cfg, self.client, self.cfg.clean_table)
-            .pipe(handle_missing_brand_timed, brands)
-            .pipe(complete_brand_timed, open_ean_data)
-            .pipe(unify_brand_timed, brands, self.cfg, self.client, if_mapping = False, mapping_name = None)
+            .pipe(handle_missing_brand, brands)
+            .pipe(complete_brand, open_ean_data)
+            #.pipe(unify_brand, brands, self.cfg, self.client, if_mapping = False, mapping_name = None)
+            .pipe(unify_brand, brands, self.cfg, self.client, if_mapping = True, mapping_name = "mapping_supermarket")
         )
 
-        do_data2table_job(self.cfg, self.client, "clean", clean_data, self.schema)
+        do_data2table_job(self.cfg, self.client, "clean", None, clean_data, self.schema)
         end = time.time()
         print(f"--> Semantic-level cleaning finished in {end - start:.2f} seconds.\n")
 
@@ -91,9 +89,9 @@ class DataCleaningPipeline:
 
         print("Step 2: Data validation...\n")
         exclude_query,_ = generate_check_exclude_query(self.cfg, self.client)
-        do_query_job(self.cfg, self.client, "excluded", exclude_query)
-        #do_query_job(self.cfg, self.client, "clean", final_query)
+        do_query_job(self.cfg, self.client, "excluded", None, exclude_query)
 
+        generate_warning_hierarchy(self.cfg, self.client)
         print("Pipeline finished.")
 
 

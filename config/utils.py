@@ -20,7 +20,7 @@ def obtain_table_name(cfg:DatasetConfig, tableType: str) -> str:
         raise ValueError("Invalid table type. Choose from 'raw', 'clean', or 'excluded'.")
     return table
 
-def obtain_dataframe(cfg:DatasetConfig,client:bigquery.Client, tableName: str) -> pd.DataFrame:
+def obtain_dataframe(cfg:DatasetConfig, client:bigquery.Client, tableName: str) -> pd.DataFrame:
 
     data = client.query(f"""
                         SELECT * FROM `{cfg.project}.{cfg.dataset}.{tableName}`
@@ -53,3 +53,40 @@ def time_it(func_name):
             return result
         return wrapper
     return decorator
+
+
+def do_query_job(cfg:DatasetConfig,client:bigquery.Client, tableType, tableName, query:str) -> None:
+    """
+    Execute the query and save the result in the specified table
+    """
+    if tableType:
+        table = obtain_table_name(cfg, tableType)
+    else:
+        table = tableName
+    job = client.query(
+        query,
+        job_config=bigquery.QueryJobConfig(
+            destination = f"{cfg.project}.{cfg.dataset}.{table}",
+            write_disposition = "WRITE_TRUNCATE",
+        )
+    )
+    job.result()
+
+def do_data2table_job(cfg: DatasetConfig, client:bigquery.Client, tableType, tableName:str, df:pd.DataFrame, schema:list) -> None:
+    """
+    Convert a dataframe to a table
+    """
+    if tableType:
+        table = obtain_table_name(cfg, tableType)
+    else:
+        table = tableName
+        
+    job = client.load_table_from_dataframe(
+        df,
+        f"{cfg.project}.{cfg.dataset}.{table}",
+        job_config=bigquery.LoadJobConfig(
+            write_disposition = "WRITE_TRUNCATE",
+            schema = schema
+        )
+    )
+    job.result()

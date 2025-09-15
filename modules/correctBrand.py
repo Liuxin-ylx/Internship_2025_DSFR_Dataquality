@@ -5,7 +5,6 @@
 import re
 import tqdm
 import time
-# import difflib
 import Levenshtein
 import pandas as pd
 
@@ -13,6 +12,15 @@ from tqdm import tqdm
 from google.cloud import bigquery
 from collections import defaultdict
 from config.configuration import DatasetConfig
+from config.utils import (
+    obtain_dataframe,
+    do_data2table_job
+)
+tqdm.pandas()
+
+################################################################################################
+###                                      Constances                                          ###
+################################################################################################
 
 
 MISSING_BRANDS = [
@@ -24,22 +32,29 @@ MISSING_BRANDS = [
 ]
 
 REMOVE_TOKENS = [
-    "PEM", "LOCAL", "PERM", "NUIT", "RIST", "S/VET", "MN", "PROMOCASH", "IMPORT", "NET", "LS", "NO NAME"
+    "PEM", "LOCAL", "PERM", "LIGNE DE","NUIT", "RIST", "S/VET", "MN", "PROMOCASH", "IMPORT", "NET", "LS", "NO NAME"
 ]
 
-tqdm.pandas()
+VERIFIED_BRANDS = [
+    "PETIT BATEAU"
+]
+
+schema = [
+            bigquery.SchemaField("brand", "STRING"),
+            bigquery.SchemaField("standard_brand", "STRING")
+        ]
 
 ################################################################################################
 ###                               5. Handle missing brand                                    ###
 ################################################################################################
 
 def handle_missing_brand(df: pd.DataFrame, cols: list):
-    
+    start = time.time()
     for col in cols:
-        # print("Before replacement:", df[col].isin(MISSING_BRANDS).sum())
         mask = df[col].isin(MISSING_BRANDS)
         df.loc[mask, col] = None
-        # print("After replacement:", df[col].isin(MISSING_BRANDS).sum())
+    end = time.time()
+    print(f"Handle missing brands completed in {end - start:.2f} seconds.")
     return df
 
 def test_handle_missing_brand(df: pd.DataFrame, cols: list):
@@ -59,6 +74,7 @@ def complete_brand(tab1, tab2: pd.DataFrame) -> pd.DataFrame:
         tab2: DataFrame OpenEAN.
     
     """
+    start = time.time()
     tab2_dedup = tab2.drop_duplicates(subset=["code"])
 
     tab_merged = tab1.merge(
@@ -76,6 +92,8 @@ def complete_brand(tab1, tab2: pd.DataFrame) -> pd.DataFrame:
     if len(tab1) != len(tab_merged):
         raise ValueError("The number of rows in the merged DataFrame does not match the original DataFrame.")
     
+    end = time.time()
+    print(f"Complete brand names completed in {end - start:.2f} seconds.")
     return tab_merged
 
 ################################################################################################
@@ -92,49 +110,6 @@ def choose_most_frequent(frequency: dict, val1: str, val2: str) -> str:
         return val2
     else:
         return max(val1,val2, key=lambda x: len(x))
-    
-def normalize_alphanum(val: str) -> str:
-    """
-    Extract the root the value by removing non-alphanumeric characters.
-    """
-    if pd.isnull(val):
-        return None
-    return re.sub(r'[^A-Z0-9]', '', val).upper()
-
-
-
-def generate_mapping_by_root(df: pd.DataFrame, col: str) -> dict:
-    """
-    L'OREAL & L OREAL
-    L OREAL -> L'OREAL
-    """
-    df["__root"] = df[col].apply(normalize_alphanum)
-    
-    most_frequent = (
-        df.groupby(["__root",col]).size()                             # Group by (__root, original, size)
-        .reset_index(name="count")                                    # Group by (__root, original, count)
-        .sort_values(["__root", "count"], ascending=[True, False])    # Order by (__root ASC, count DESC)
-        .drop_duplicates(subset=["__root"])                           # Keep the most frequent original for each __root
-        .set_index("__root")[col]                                     # Index: __root, Value: original
-        .to_dict()                                                    # Dict { __root: original }
-        )
-    
-    df[col] = df["__root"].map(most_frequent)
-
-    mapping = {}
-    for _,row in tqdm(df.iterrows(), desc=f"Mapping {col} by root"):
-        original = row[col]
-        rooted = row["__root"]
-        if pd.isnull(original) or pd.isnull(rooted):
-            continue
-        mapping[original] =  most_frequent.get(rooted, original)
-
-    # 这种写法不会修改传入的原始 DataFrame df
-    # df = df.drop(columns=["__root"])
-    # 这种写法可以修改传入的原始 DataFrame df
-    df.drop(columns=["__root"], inplace=True)
-
-    return mapping
 
 
 def generate_mapping_ngram(brands: list, frequency: dict, n, min_share: int, threshold: float) -> dict:
@@ -230,33 +205,39 @@ def generate_mapping_by_similarity(brands: list, frequency: dict, threshold: flo
     return mapping_similarity
 
 
+def extract_root(val: str) -> str:
+    if pd.isnull(val):
+        return None
+    
+    upper = str(val).upper()
+
+    for b in VERIFIED_BRANDS:
+        if b in upper:
+            return b
+
+    parts = upper.split()  # ["PETIT", "BATEAU", "62", "NUIT", "RIST"]
+    val_cleaned = [w for w in parts if w not in REMOVE_TOKENS and not w.isdigit()] # val_cleaned = ["PETIT", "BATEAU"]
+    
+    return ' '.join(val_cleaned) if val_cleaned else upper
+
 
 def unify_brand(df: pd.DataFrame, cols:list, cfg:DatasetConfig, client: bigquery.Client, if_mapping:bool, mapping_name:str): 
 
-    def extract_root(val: str) -> str:
-        if pd.isnull(val):
-            return None
-        upper = str(val).upper()
-        parts = upper.split()  # ["PETIT", "BATEAU", "62", "NUIT", "RIST"]
-        val_cleaned = [w for w in parts if w not in REMOVE_TOKENS and not w.isdigit()] # val_cleaned = ["PETIT", "BATEAU"]
-        
-        return ' '.join(val_cleaned) if val_cleaned else upper
-
     client = bigquery.Client()
-    mapping_all = {}
+    mapping_similarity = {}
     values_all = set()
     
+    start = time.time()
     if if_mapping:
-        start = time.time()
-        df_mapping = client.obtain_dataframe(cfg,client, mapping_name)
-        mapping_all = dict(zip(df_mapping["brand"], df_mapping["standard_brand"]))
+
+        df_mapping = obtain_dataframe(cfg, client, mapping_name)
+        mapping_similarity = dict(zip(df_mapping["brand"], df_mapping["standard_brand"]))
         
         for col in cols:
-            df[col] = df[col].replace(mapping_all)
-
-        end = time.time()
-        print(f"Mapping loaded in {end - start:.2f} seconds.\n")
+            df[col] = df[col].apply(extract_root)
+            df[col] = df[col].replace(mapping_similarity)
     else:
+        ######################### Brand extraction #########################
         start = time.time()
         brand_counter = {}
         for col in cols:
@@ -268,9 +249,9 @@ def unify_brand(df: pd.DataFrame, cols:list, cfg:DatasetConfig, client: bigquery
             
             values_all.update(values.unique())
         end = time.time()
+        
         print(f"""
-              Unify N°1: Brand extraction completed in {end - start:.2f} seconds.""")
-
+        Unify N°1: Brand extraction completed in {end - start:.2f} seconds.""")
         ######################### Mapping by similarity #########################
         start = time.time()
         brands = sorted(list(values_all))
@@ -278,21 +259,23 @@ def unify_brand(df: pd.DataFrame, cols:list, cfg:DatasetConfig, client: bigquery
         for col in cols:
             df[col] = df[col].replace(mapping_similarity)
         end = time.time()
-        print(f"""
-              Unify N°2: Mapping by similarity completed in {end - start:.2f} seconds.""")
         
-
-        # print("Drop duplicates in mapping_similarity_df...")
+        print(f"""
+        Unify N°2: Mapping by similarity created in {end - start:.2f} seconds.""")
+        ######################### Save mapping #########################
         start = time.time()
         mapping_similarity_df = pd.DataFrame(
             [{"brand": k, "standard_brand": v} for k, v in mapping_similarity.items()]
         )
         mapping_similarity_df = mapping_similarity_df.drop_duplicates(subset=["brand", "standard_brand"])
-
-        job = client.load_table_from_dataframe(mapping_similarity_df, f'{cfg.project}.{cfg.dataset}.mapping_similarity_{cfg.dataset_type}')
-        job.result()
+        
+        do_data2table_job(cfg, client, None,f"mapping_{cfg.dataset_type}", mapping_similarity_df, schema)
         end = time.time()
+        
         print(f"""
-              Unify N°3: Mapping by similarity saved in {end - start:.2f} seconds.\n""")
-
+        Unify N°3: Mapping saved in {end - start:.2f} seconds.""")
+        
+    end = time.time()
+    print(f"Unify brand names completed in {end - start:.2f} seconds.\n")
+    
     return df

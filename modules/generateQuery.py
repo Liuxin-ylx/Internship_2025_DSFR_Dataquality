@@ -4,12 +4,36 @@
 
 from google.cloud import bigquery
 from config.configuration import DatasetConfig
-from config.obtainInfo import (
+from config.utils import (
     obtain_table_name,
     load_check_rules
 )
-import pandas as pd
 from typing import Tuple
+
+################################################################################################
+###                                       Constants                                          ###
+################################################################################################
+
+global_hierarchy_cols = [
+        "hierarchy_level1_desc",
+        "global_hierarchy_level2_desc",
+        "global_hierarchy_level3_desc",
+        "global_hierarchy_level4_desc",
+        "global_hierarchy_level5_desc",
+        "global_hierarchy_level6_desc"
+]
+
+local_hierarchy_cols = [
+        "hierarchy_level1_desc",
+        "local_hierarchy_level2_desc",
+        "local_hierarchy_level3_desc",
+        "local_hierarchy_level4_desc",
+        "local_hierarchy_level5_desc",
+        "local_hierarchy_level6_desc"
+]
+################################################################################################
+###                                      Functions                                         ###
+################################################################################################
 
 def generate_clean_clause(schema, prefix: str = None) -> str:
     """Generate a cleaning clause to normalize all STRING columns.
@@ -112,7 +136,6 @@ def date_format_query(from_table:str, schema:list) -> str:
 
     return rule_date
 
-
 def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> Tuple[str,str]:
     """
     Query1 : Check duplicates across the entire line
@@ -166,31 +189,61 @@ def generate_check_exclude_query(cfg:DatasetConfig, client:bigquery.Client) -> T
     return exclude_query,filter_query
 
 
-def do_query_job(cfg:DatasetConfig,client:bigquery.Client, tableType:str, query:str) -> None:
-    """
-    Execute the query and save the result in the specified table
-    """
-    table = obtain_table_name(cfg, tableType)
-    job = client.query(
-        query,
-        job_config=bigquery.QueryJobConfig(
-            destination = f"{cfg.project}.{cfg.dataset}.{table}",
-            write_disposition = "WRITE_TRUNCATE",
-        )
-    )
-    job.result()
+def generate_validation_hierarchy_query(cfg:DatasetConfig, table,levelup,leveldown: str) -> str:
 
-def do_data2table_job(cfg: DatasetConfig, client:bigquery.Client, tableType:str, df:pd.DataFrame, schema:list) -> None:
-    """
-    Convert a dataframe to a table
-    """
-    table = obtain_table_name(cfg, tableType)
-    job = client.load_table_from_dataframe(
-        df,
-        f"{cfg.project}.{cfg.dataset}.{table}",
-        job_config=bigquery.LoadJobConfig(
-            write_disposition = "WRITE_TRUNCATE",
-            schema = schema
-        )
+    query = f"""
+    WITH hierarchy AS (
+        SELECT
+            {levelup},
+            {leveldown}
+        FROM
+            `{cfg.project}.{cfg.dataset}.{table}`
+        GROUP BY
+            {levelup}, {leveldown}
     )
-    job.result()
+
+    SELECT
+        {leveldown},
+        ARRAY_AGG({levelup}) AS `Corresponding_{levelup}`
+    FROM hierarchy
+    GROUP BY {leveldown}
+    HAVING COUNT(DISTINCT {levelup}) > 1
+    """
+    return query
+
+
+def generate_warning_hierarchy(cfg:DatasetConfig, client:bigquery.Client, tableType: str) -> None:
+
+    table = obtain_table_name(cfg, tableType)
+
+    for i in range(len(global_hierarchy_cols) - 1):
+        levelup = global_hierarchy_cols[i]
+        leveldown = global_hierarchy_cols[i + 1]
+        query = generate_validation_hierarchy_query(
+            cfg = cfg,
+            table = table,
+            levelup = levelup,
+            leveldown = leveldown
+        )
+
+        data = client.query(query).to_dataframe()
+        if not data.empty:
+            print(f"Warning: {leveldown} has multiple corresponding higher level values:")
+            for i in range(len(data)):
+                print(f"{i} - {data.iloc[i][leveldown]} : {data.iloc[i]['Corresponding_' + levelup]}")
+
+    for i in range(len(local_hierarchy_cols) - 1):
+        levelup = local_hierarchy_cols[i]
+        leveldown = local_hierarchy_cols[i + 1]
+        query = generate_validation_hierarchy_query(
+            cfg = cfg,
+            table = table,
+            levelup = levelup,
+            leveldown = leveldown
+        )
+
+        data = client.query(query).to_dataframe()
+        if not data.empty:
+            print(f"Warning: {leveldown} has multiple corresponding higher level values:")
+            for i in range(len(data)):
+                print(f"{i} - {data.iloc[i][leveldown]}: {data.iloc[i]['Corresponding_' + levelup]}")
